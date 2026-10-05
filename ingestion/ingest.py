@@ -26,7 +26,7 @@ class RecallController:
     date_col = 'report_date'
     start    = datetime.today() - timedelta(days=7) 
     end      = datetime.now()
-    sleep    = 39 / 60 # limited by 40 requests per minute
+    sleep    = 40 / 60 # limited by 40 requests per minute
     search   = ''
     connection = None
     saved_rows = 0
@@ -58,12 +58,13 @@ class RecallController:
 
     def write_json_to_db(self, data):
         query = """
-        INSERT INTO raw_data (raw_data) VALUES (%s)
+        INSERT INTO raw_data (index, raw_data) VALUES (%s, %s)
+        ON CONFLICT DO NOTHING
         """
 
         cursor = self.conn.cursor()
         try:
-            cursor.execute(query, (json.dumps(data),))
+            cursor.execute(query, (data['recall_number'], json.dumps(data)))
 
             self.conn.commit()
             self.saved_rows += cursor.rowcount
@@ -100,13 +101,19 @@ class RecallController:
                 print(f"Percent complete {int((self.saved_rows / self.total) * 100)}%")
                 if done: 
                     break
-                time.sleep(0.05)
+                time.sleep(self.sleep)
             except error.HTTPError as e:
                 if e.code == 429:
                     print("Rate limited timing out")
-                    time.sleep(self.sleep)
-                print(f"Http error {e.code} {e.msg}")
-                break
+                    time.sleep(60)
+                    continue
+                elif e.code == 404:
+                    print("no records found exiting")
+                    exit(0)
+                else:
+                    print(f"{e.code} {e.msg}")
+                    break
+
         print(f"total of {self.saved_rows} rows saved")
 
 def main():
