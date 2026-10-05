@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# setup.sh — create or rebuild the project's virtual environment
 set -euo pipefail
 
 rm -rf .venv
