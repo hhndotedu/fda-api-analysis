@@ -56,7 +56,7 @@ class RecallController:
         with request.urlopen(req) as response:
            return response.read()
 
-    def write_json_to_db(self, data):
+    def write_json_to_db(self, index, data):
         query = """
         INSERT INTO raw_data (index, raw_data) VALUES (%s, %s)
         ON CONFLICT DO NOTHING
@@ -64,7 +64,7 @@ class RecallController:
 
         cursor = self.conn.cursor()
         try:
-            cursor.execute(query, (data['recall_number'], json.dumps(data)))
+            cursor.execute(query, (index, json.dumps(data)))
 
             self.conn.commit()
             self.saved_rows += cursor.rowcount
@@ -86,7 +86,11 @@ class RecallController:
         
         results = data['results']
         for result in results:
-            self.write_json_to_db(result)
+            index = result['recall_number']
+            if index == '':
+                print("found item with empty recall number skipping")
+                continue
+            self.write_json_to_db(index, result)
         
         self.skip += self.limit
         return self.skip >= self.total
@@ -98,7 +102,7 @@ class RecallController:
             try:
                 resp = self.send_request(url)
                 done = self.process_response(resp)
-                print(f"Percent complete {int((self.saved_rows / self.total) * 100)}%")
+                print(f"Percent complete {int((min(self.skip, self.total) / self.total) * 100)}%")
                 if done: 
                     break
                 time.sleep(self.sleep)
@@ -114,12 +118,12 @@ class RecallController:
                     print(f"{e.code} {e.msg}")
                     break
 
-        print(f"total of {self.saved_rows} rows saved")
+        print(f"total of {self.saved_rows} new rows saved")
 
 def main():
     url = 'https://api.fda.gov/drug/enforcement.json'
     args = sys.argv
-    start_date = datetime.today() - timedelta(days=1)
+    start_date = datetime.today() - timedelta(days=7)
     end_date = datetime.today()
     date_col = 'report_date'
     limit  = 1000
